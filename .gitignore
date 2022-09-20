@@ -1,0 +1,20 @@
+.DS_Store
+.python-version
+
+# Pycharm
+/.idea/
+
+# vscode
+.vscode/
+
+# Python
+__pycache__/
+/venv/
+
+# Cache
+.mypy_cache/
+.pytest_cache/
+
+.coverage
+
+grafana/
