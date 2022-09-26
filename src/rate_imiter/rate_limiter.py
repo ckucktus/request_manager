@@ -37,6 +37,16 @@ class SlidingWindowRateLimiter(AbstractAsyncContextManager):
 
         self.getter_pipeline = self._build_getter_pipeline()
 
+    def __call__(self, redis_key: str) -> 'SlidingWindowRateLimiter':
+        return self.__class__(
+            self.redis_connection,
+            redis_key,
+            self.rate_for_second,
+            self.rate_for_minute,
+            self.rate_for_hour,
+            self.rate_for_day,
+        )
+
     def _validate_limits(self) -> None:
 
         limits: List[int] = list(
@@ -95,12 +105,30 @@ class SlidingWindowRateLimiter(AbstractAsyncContextManager):
             )
 
     async def __aenter__(self) -> None:
-        """Используется упорядоченное множество с лексикографической сортировкой"""
+        """
+        Используется алгоритм скользящего на основе редиса
+        Размер окна - максимальный лимит
+        работает на упорядоченном множестве с лексикографической сортировкой
+
+        ключ(float значение, float значение}
+
+        Пример
+        множество в редисе:
+        лимит указан не более 2 раз в секунду
+        lk_simi-get_document_patient_id=1(1663865143.2675214, 1663865143.3675214}
+
+        в это время происходит запрос с timestamp 1663865143.5
+        Запрос не пройдет так как в последнюю секунду уже было сделано 2 запроса
+        """
 
         _, last_second_count, last_minute_count, last_hour_count, last_day_count = await self.getter_pipeline.execute()
         self._check_limit(last_second_count, last_minute_count, last_hour_count, last_day_count)
 
     async def __aexit__(self, *exc: Any) -> None:
+        """
+        При выходе и контекста происходит запись в редис с временной меткой запроса,
+        временем считается момент отправки запроса
+        """
         await self.redis_connection.zadd(
             self.redis_key,
             {f"{self.request_time}": 0},

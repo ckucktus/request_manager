@@ -3,24 +3,10 @@ from unittest.mock import Mock
 
 import aioredis
 import pytest
-from aioredis import Redis
 
 from src.rate_imiter.rate_limiter import RateLimitException, SlidingWindowRateLimiter
 
 
-@pytest.fixture
-async def redis_connection():
-    pool = aioredis.ConnectionPool.from_url("redis://localhost:6379", decode_responses=True, db=1)
-
-    yield Redis(connection_pool=pool)
-
-    await pool.disconnect()
-
-
-@pytest.fixture
-async def clean_redis(redis_connection):
-    yield
-    await redis_connection.flushdb()
 
 
 async def test_general_flow_sliding_window(redis_connection, clean_redis):

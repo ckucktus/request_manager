@@ -1,7 +1,7 @@
 from inspect import iscoroutinefunction
 from typing import Any, Callable, Optional
 
-from tenacity import BaseRetrying, Retrying
+from tenacity import BaseRetrying, retry, Retrying
 from tenacity._asyncio import AsyncRetrying
 
 
@@ -17,3 +17,12 @@ class RequestRetryer:
             r = Retrying(*self.args, **self.kwargs)
         return r.wraps(func)
         # return wrapped
+
+r = RequestRetryer(sleep=1, stop=2)
+r2 = retry(sleep=1, stop=2)
+
+@r2
+def a():
+    print(1)
+
+a()
