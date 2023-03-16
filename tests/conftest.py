@@ -1,6 +1,6 @@
-from aioredis import Redis
 import aioredis
 import pytest
+from aioredis import Redis
 
 
 @pytest.fixture

@@ -1,19 +1,16 @@
 from typing import Type
 from unittest.mock import Mock
 
-import aioredis
 import pytest
 
 from src.rate_imiter.rate_limiter import RateLimitException, SlidingWindowRateLimiter
-
-
 
 
 async def test_general_flow_sliding_window(redis_connection, clean_redis):
     with pytest.raises(RateLimitException) as exc:
         for _ in range(10):
             async with SlidingWindowRateLimiter(
-                redis_connection=redis_connection, redis_key='unique_key', rate_for_minute=60, rate_for_second=1
+                redis_connection=redis_connection, cache_key='unique_key', rate_for_minute=60, rate_for_second=1
             ):
                 pass
     assert exc.value.args[0] == 'Limit exceeded, limit per second: 1 counted calls: 1'
