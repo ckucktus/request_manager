@@ -9,7 +9,7 @@ class TTLInvalidator(AbstractCacheStrategy, HelpUtilsMixin):
     def __init__(
         self,
         cache_service: BaseCacheControlService,
-        use_retry: bool,
+        use_retry: bool = False,
         **kwargs: Any,
     ) -> None:
         self.use_retry = use_retry
@@ -23,12 +23,11 @@ class TTLInvalidator(AbstractCacheStrategy, HelpUtilsMixin):
     ) -> Any:
         executor = self.build_executor(
             cache_key=cache_key,
-            redis_connection=None,
             use_retry=self.use_retry,
-            rate_limiter=None,
+            use_rate_limiter=False,
             **self.kwargs,
         )
-        cache = self.cache_service.get_cache(cache_key)
+        cache = await self.cache_service.get_cache(cache_key)
         if cache:
             return cache
         result = await executor(wrapped_func)

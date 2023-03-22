@@ -23,6 +23,14 @@ class BaseCacheControlService(AbstractCacheService):
         redis_connection: Redis,
         **kwargs: Any,
     ) -> None:
+        """
+
+        :param ex: Set the specified expire time, in seconds,
+        :param px: Set the specified expire time, in milliseconds,
+        :param nx: Only set the key if it does not already exist,
+        :param xx: Only set the key if it already exist,
+        :param keepttl: Retain the time to live associated with the key,
+        """
         self.redis_connection = redis_connection
         self.kwargs = kwargs
 

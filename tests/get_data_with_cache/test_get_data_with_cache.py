@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Callable
 
 from main import RequestManager
@@ -8,22 +8,23 @@ from src.cache_manager.cache_manager import CacheControlService
 from src.rate_imiter.rate_limiter import SlidingWindowRateLimiter
 
 
-class FakeCacheControlService(CacheControlService):
-    def build_redis_key(
+class FakeRequestManager(RequestManager):
+    def build_cache_key(
         self,
         func: Callable,
         *func_call_args: Any,
         **func_call_kwargs: Any,
     ) -> str:
-        return func.__name__ + datetime.now().isoformat()
+        key = super().build_cache_key(func, *func_call_args, **func_call_kwargs)
+        return key + datetime.now(tz=timezone.utc).isoformat()
 
 
 async def test_get_data_with_cache_without_retry(redis_connection, clean_redis):
-    manager = RequestManager(
+    manager = FakeRequestManager(
         service_name='test_service',
         service_version='test_version',
         cache_strategy=BackgroundUpdater(
-            cache_service=FakeCacheControlService(redis_connection, service_name='test_service'),
+            cache_service=CacheControlService(redis_connection),
             rate_limiter=SlidingWindowRateLimiter,
             redis_connection=redis_connection,
         ),
@@ -49,7 +50,7 @@ async def test_get_data_with_cache_without_retry(redis_connection, clean_redis):
     await asyncio.sleep(1)  # ждем пока выполнится обновление кэша в фоне
     assert perform_request.call_count == 2
 
-    key = manager.build_cache_key(perform_request, TEST_DATA)
+    key = RequestManager.build_cache_key(manager, perform_request, TEST_DATA)
 
     _, keys = await redis_connection.scan(match=key + '*')
     assert len(keys) == 2
@@ -60,8 +61,8 @@ async def test_get_data_with_cache_blocked_by_rate_limiter_without_retry(redis_c
         service_name='test_service',
         service_version='test_version',
         cache_strategy=BackgroundUpdater(
-            cache_service=FakeCacheControlService(redis_connection, service_name='test_service'),
-            rate_limiter=SlidingWindowRateLimiter,
+            cache_service=CacheControlService(redis_connection),
+            use_rate_limiter=True,
             redis_connection=redis_connection,
         ),
     )
@@ -85,7 +86,7 @@ async def test_get_data_with_cache_blocked_by_rate_limiter_without_retry(redis_c
     await asyncio.sleep(1)  # ждем пока выполнится обновление кэша в фоне
     assert perform_request.call_count == 2
 
-    key = manager.build_cache_key(perform_request, TEST_DATA)
+    key = RequestManager.build_cache_key(manager, perform_request, TEST_DATA)
 
     _, keys = await redis_connection.scan(match=key + '*')
     assert len(keys) == 2

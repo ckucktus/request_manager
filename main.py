@@ -69,9 +69,9 @@ class RequestManager:
         return build_cache_key(
             func,
             self.service_name,
-            self.integration,
-            self.integration_method,
             *func_call_args,
+            integration=self.integration,
+            integration_method=self.integration_method,
             service_version=self.service_version,
             **func_call_kwargs,
         )

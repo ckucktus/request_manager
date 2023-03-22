@@ -2,12 +2,11 @@ import functools
 import inspect
 from abc import ABC, abstractmethod
 from functools import partial
-from typing import TYPE_CHECKING, Any, Callable, Coroutine, Dict, Type, Union
-
-if TYPE_CHECKING:
-    from src.rate_imiter.rate_limiter import SlidingWindowRateLimiter
+from typing import Any, Callable, Coroutine, Dict, Type, Union
 
 from tenacity import AsyncRetrying, retry
+
+from src.rate_imiter.rate_limiter import SlidingWindowRateLimiter
 
 
 def dummy_decorator(*args: Any, **kwargs: Any) -> Callable:
@@ -58,13 +57,12 @@ class HelpUtilsMixin:
         :param retry_error_callback:
 
         Параметры для ограничителя запросов
-
-        :param redis_connection:
         :param cache_key:
         :param rate_for_second:
         :param rate_for_minute:
         :param rate_for_hour:
         :param rate_for_day:
+        :param redis_connection
         """
 
         request_retryer: Callable = retry if use_retry else dummy_decorator  # type: ignore
@@ -72,8 +70,8 @@ class HelpUtilsMixin:
             SlidingWindowRateLimiter if use_rate_limiter else dummy_decorator
         )
 
-        retryer_args = self._build_init_args(_class=AsyncRetrying, **kwargs)
-        rate_limiter_args = self._build_init_args(_class=SlidingWindowRateLimiter, **kwargs)
+        retryer_args = self._build_init_args(_class=AsyncRetrying, **kwargs) if use_rate_limiter else {}
+        rate_limiter_args = self._build_init_args(_class=SlidingWindowRateLimiter, **kwargs) if use_rate_limiter else {}
 
         @request_retryer(**retryer_args)
         @rate_limiter(**rate_limiter_args)
@@ -84,7 +82,7 @@ class HelpUtilsMixin:
 
     @staticmethod
     def _build_init_args(
-        _class: Union[Type[SlidingWindowRateLimiter], Type[AsyncRetrying]], **kwargs: Any
+        _class: Union[Type['SlidingWindowRateLimiter'], Type[AsyncRetrying]], **kwargs: Any
     ) -> Dict[str, Any]:
         """
         Итерируется по родительским классам и если находит соответствие имен между конструктором родительского класса
@@ -95,7 +93,9 @@ class HelpUtilsMixin:
         if not kwargs:
             return response
 
-        for super_class in AsyncRetrying.__mro__:
-            response.update(dict(*inspect.signature(super_class).bind(kwargs).arguments.values()))
+        for super_class in _class.__mro__[1::-1]:
+            signature = inspect.signature(super_class)
+            if intersection := (signature.parameters.keys() & kwargs.keys()):
+                response.update({i: kwargs[i] for i in intersection})
 
         return response

@@ -9,7 +9,7 @@ from tenacity import RetryError
 from src.cache_invalidator_strategy.base import AbstractCacheStrategy, HelpUtilsMixin
 from src.cache_manager.cache_manager import BaseCacheControlService
 from src.exceptions.exceptions import InvalidCacheError
-from src.rate_imiter.rate_limiter import RateLimitException, SlidingWindowRateLimiter
+from src.rate_imiter.rate_limiter import RateLimitException
 
 if TYPE_CHECKING:
     pass
@@ -48,7 +48,7 @@ class BackgroundUpdater(AbstractCacheStrategy, HelpUtilsMixin):
     async def get_data(self, wrapped_func: functools.partial, cache_key: str) -> Any:
         executor = self.build_executor(
             use_retry=self.use_retry,
-            rate_limiter=SlidingWindowRateLimiter,
+            use_rate_limiter=self.use_rate_limiter,
             cache_key=cache_key,
             redis_connection=self.redis_connection,
             **self.kwargs,
