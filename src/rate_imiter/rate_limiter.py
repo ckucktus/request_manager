@@ -1,6 +1,6 @@
 from contextlib import AbstractAsyncContextManager
 from time import time
-from typing import Any, Callable, List
+from typing import Any, Callable, List, Optional
 
 from aioredis import Redis
 from aioredis.client import Pipeline
@@ -20,10 +20,10 @@ class SlidingWindowRateLimiter(AbstractAsyncContextManager):
         self,
         redis_connection: Redis,
         cache_key: str,
-        rate_for_second: int = None,
-        rate_for_minute: int = None,
-        rate_for_hour: int = None,
-        rate_for_day: int = None,
+        rate_for_second: Optional[int] = None,
+        rate_for_minute: Optional[int] = None,
+        rate_for_hour: Optional[int] = None,
+        rate_for_day: Optional[int] = None,
     ) -> None:
         self.redis_connection = redis_connection
         self.cache_key = cache_key + ':rate_limiter'
@@ -36,9 +36,8 @@ class SlidingWindowRateLimiter(AbstractAsyncContextManager):
         self.request_time: float = time()
 
     def _validate_limits(self) -> None:
-
         limits: List[int] = list(
-            filter(bool, [self.rate_for_second, self.rate_for_minute, self.rate_for_hour, self.rate_for_day])
+            filter(None, [self.rate_for_second, self.rate_for_minute, self.rate_for_hour, self.rate_for_day])
         )
         for i, current_limit in enumerate(limits):
             for higher_limit in limits[i + 1 :]:
@@ -84,11 +83,11 @@ class SlidingWindowRateLimiter(AbstractAsyncContextManager):
                 window_max_size = window_size
                 break
 
-        pipline.zremrangebylex(self.cache_key, min="-", max=f"[{int(self.request_time)-window_max_size}")
-        pipline.zlexcount(self.cache_key, min=f"[{self.request_time-SECOND}", max=f"[{self.request_time + 1}")
-        pipline.zlexcount(self.cache_key, min=f"[{self.request_time-MINUTE}", max=f"[{self.request_time + 1}")
-        pipline.zlexcount(self.cache_key, min=f"[{self.request_time-HOUR}", max=f"[{self.request_time + 1}")
-        pipline.zlexcount(self.cache_key, min=f"[{self.request_time-DAY}", max=f"[{self.request_time + 1}")
+        pipline.zremrangebylex(self.cache_key, min='-', max=f'[{int(self.request_time)-window_max_size}')
+        pipline.zlexcount(self.cache_key, min=f'[{self.request_time-SECOND}', max=f'[{self.request_time + 1}')
+        pipline.zlexcount(self.cache_key, min=f'[{self.request_time-MINUTE}', max=f'[{self.request_time + 1}')
+        pipline.zlexcount(self.cache_key, min=f'[{self.request_time-HOUR}', max=f'[{self.request_time + 1}')
+        pipline.zlexcount(self.cache_key, min=f'[{self.request_time-DAY}', max=f'[{self.request_time + 1}')
 
         return pipline
 
@@ -124,7 +123,7 @@ class SlidingWindowRateLimiter(AbstractAsyncContextManager):
             finally:
                 await self.redis_connection.zadd(
                     self.cache_key,
-                    {f"{self.request_time}": 0},
+                    {f'{self.request_time}': 0},
                 )
 
         return wrapped
@@ -136,5 +135,5 @@ class SlidingWindowRateLimiter(AbstractAsyncContextManager):
         """
         await self.redis_connection.zadd(
             self.cache_key,
-            {f"{self.request_time}": 0},
+            {f'{self.request_time}': 0},
         )

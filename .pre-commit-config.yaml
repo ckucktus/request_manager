@@ -1,0 +1,59 @@
+repos:
+  - repo: local
+    hooks:
+
+      - id: black
+        name: black
+        entry: black
+        language: system
+        files: ^(src|tests)/.+\.py$
+        exclude: mock_data.py$
+
+      - id: isort
+        name: isort
+        entry: isort
+        language: system
+        files: ^(src|tests)/.+\.py$
+
+      - id: mypy
+        name: mypy
+        entry: mypy
+        language: system
+        files: ^(src)/.+\.py$
+
+      - id: ruff
+        name: ruff
+        entry: ruff check --config .pre-commit-ruff.toml
+        language: system
+        files: ^(src|tests)/.+\.py$
+
+      - id: bandit
+        name: bandit
+        entry: bandit
+        language: system
+        files: ^(src)/.+\.py$
+
+      - id: safety
+        name: safety
+        entry: make safety
+        language: system
+        files: ^(poetry.lock)$
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 'v4.3.0'
+    hooks:
+      - id: check-added-large-files
+      - id: detect-private-key
+      - id: check-json
+      - id: check-toml
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: end-of-file-fixer
+      - id: double-quote-string-fixer
+      - id: name-tests-test
+        files: ^(tests)/.+\.py$
+        exclude: ^(tests).+(mock|util|constant|fixtur).*(\.py)$
+        args:
+          - '--pytest-test-first'
+      - id: trailing-whitespace
+        exclude: mock_data.py$

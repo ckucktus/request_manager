@@ -1,0 +1,14 @@
+extend = "pyproject.toml"
+extend-select = [
+   "B",  # flake8-bugbear
+  "C4",  # flake8-comprehensions
+ "RET",  # flake8-return
+ "SIM",  # flake8-simplify
+  "PL",  # Pylint
+]
+extend-ignore = [
+  "PLR0913",  # Too many arguments to function call
+  "PTH123",   # PTH123 `open("foo")` should be replaced by `Path("foo").open()`
+  "COM812",    # Trailing comma missing
+  "SIM105"    # Use `contextlib.suppress(err)` instead of try-except-pass
+]

@@ -1,30 +1,17 @@
 import functools
 import inspect
 from abc import ABC, abstractmethod
-from contextlib import nullcontext
 from functools import partial
-from typing import TYPE_CHECKING, Any, Callable, Coroutine, Dict, Optional, Type, Union
+from typing import TYPE_CHECKING, Any, Callable, Coroutine, Dict, Type, Union
 
 if TYPE_CHECKING:
     from src.rate_imiter.rate_limiter import SlidingWindowRateLimiter
 
-from aioredis import Redis
-from tenacity import AsyncRetrying
-
-
-class AsyncNullContext(nullcontext):
-    def __init__(self, *args: Any, enter_result: Any = None, **kwargs: Any) -> None:
-        super().__init__(enter_result=enter_result)
-
-    async def __aenter__(self) -> Any:
-        return self.enter_result
-
-    async def __aexit__(self, *exc: Any) -> None:
-        pass
+from tenacity import AsyncRetrying, retry
 
 
 def dummy_decorator(*args: Any, **kwargs: Any) -> Callable:
-    def decorator(func):
+    def decorator(func: Callable) -> Any:
         return func
 
     return decorator
@@ -36,7 +23,6 @@ class AbstractCacheStrategy(ABC):
         self,
         wrapped_func: partial,
         cache_key: str,
-        use_cache: bool = True,  # для тестирования
     ) -> Any:
         pass
 
@@ -44,10 +30,8 @@ class AbstractCacheStrategy(ABC):
 class HelpUtilsMixin:
     def build_executor(
         self,
-        redis_connection: Redis,
-        cache_key: str,
-        request_retryer: Optional[Callable],
-        rate_limiter: Optional[Type['SlidingWindowRateLimiter']],
+        use_retry: bool,
+        use_rate_limiter: bool,
         **kwargs: Any,
     ) -> Callable[[functools.partial], Coroutine]:
         """
@@ -56,28 +40,55 @@ class HelpUtilsMixin:
         2) Запуск без лимитов, но с ретраями
         3) Запуск с лимитами, но без ретраев
         4) Оставит всё, как есть
+
+
+        :param use_retry:
+        :param use_rate_limiter:
+
+        Параметры для ретрая
+        :param sleep:
+        :param stop:
+        :param wait:
+        :param retry:
+        :param before:
+        :param after:
+        :param before_sleep:
+        :param reraise:
+        :param retry_error_cls:
+        :param retry_error_callback:
+
+        Параметры для ограничителя запросов
+
+        :param redis_connection:
+        :param cache_key:
+        :param rate_for_second:
+        :param rate_for_minute:
+        :param rate_for_hour:
+        :param rate_for_day:
         """
 
-        request_retryer = request_retryer if request_retryer else dummy_decorator
-        _rate_limiter: Union[Type[SlidingWindowRateLimiter], Callable] = (
-            rate_limiter if rate_limiter else dummy_decorator
+        request_retryer: Callable = retry if use_retry else dummy_decorator  # type: ignore
+        rate_limiter: Union[Type[SlidingWindowRateLimiter], Callable] = (
+            SlidingWindowRateLimiter if use_rate_limiter else dummy_decorator
         )
 
-        retryer_args = self._build_retryer_args(**kwargs)
+        retryer_args = self._build_init_args(_class=AsyncRetrying, **kwargs)
+        rate_limiter_args = self._build_init_args(_class=SlidingWindowRateLimiter, **kwargs)
 
         @request_retryer(**retryer_args)
-        @_rate_limiter(cache_key=cache_key, redis_connection=redis_connection)
+        @rate_limiter(**rate_limiter_args)
         async def executor(func: functools.partial) -> Any:
-            # async with _rate_limiter(cache_key):
             return await func()
 
         return executor
 
-    def _build_retryer_args(self, **kwargs) -> Dict[str, Any]:
-
+    @staticmethod
+    def _build_init_args(
+        _class: Union[Type[SlidingWindowRateLimiter], Type[AsyncRetrying]], **kwargs: Any
+    ) -> Dict[str, Any]:
         """
         Итерируется по родительским классам и если находит соответствие имен между конструктором родительского класса
-        и кваргами то, записывает это в аргументы для построения инстанса ретраера
+        и кваргами то, записывает это в аргументы для построения инстанса
         """
 
         response: Dict[str, Any] = {}
@@ -86,21 +97,5 @@ class HelpUtilsMixin:
 
         for super_class in AsyncRetrying.__mro__:
             response.update(dict(*inspect.signature(super_class).bind(kwargs).arguments.values()))
-
-        return response
-
-    def _build_rate_limiter_args(self) -> Dict[str, Any]:
-
-        """
-        Итерируется по родительским классам и если находит соответствие имен между конструктором родительского класса
-        и кваргами то, записывает это в аргументы для построения инстанса огранечителя запросов
-        """
-
-        response: Dict[str, Any] = {}
-        if not self.kwargs:
-            return response
-
-        for super_class in self.rate_limiter.__class__.__mro__:
-            response.update(dict(*inspect.signature(super_class).bind(self.kwargs).arguments.values()))
 
         return response

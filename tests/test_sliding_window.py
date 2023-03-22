@@ -35,7 +35,6 @@ def test_check_validate_limit(
     day_rate: int,
     result: Type[Exception],
 ):
-
     if result:
         with pytest.raises(result):
             SlidingWindowRateLimiter(

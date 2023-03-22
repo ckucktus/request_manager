@@ -1,53 +1,54 @@
 from __future__ import annotations
 
 import inspect
-from contextvars import ContextVar
 from functools import partial
 from typing import Any, Callable
 
 from src.cache_invalidator_strategy.base import AbstractCacheStrategy
-
-USE_CACHE: ContextVar = ContextVar('USE_CACHE')
-USE_CACHE.set(True)
-
-
-class CacheDataUnitOfWork:
-    def __init__(self, redis_connection):
-        self.session = redis_connection
-
-    def __enter__(self):
-        return self
 
 
 def build_cache_key(
     func: Callable,
     service_name: str,
     *func_call_args: Any,
+    integration: str = None,
+    integration_method: str = None,
     service_version: str = None,
     **func_call_kwargs: Any,
 ) -> str:
-    list_of_sections = [service_name, func.__name__] + [
-        f"{arg_name}={arg_value}"
+
+    static_key_sections = [service_name]
+    if service_version:
+        static_key_sections += [service_version]
+    if integration:
+        static_key_sections += [integration]
+    if integration_method:
+        static_key_sections += [integration_method]
+
+    list_of_sections = static_key_sections + [
+        f'{arg_name}={arg_value}'
         for arg_name, arg_value in inspect.getcallargs(func, *func_call_args, **func_call_kwargs).items()
     ]
-    if service_version:
-        list_of_sections.insert(1, service_version)
 
-    return ":".join(list_of_sections)
+    return ':'.join(list_of_sections)
 
 
 class RequestManager:
     def __init__(
         self,
         service_name: str,
-        service_version: str,
         cache_strategy: AbstractCacheStrategy,
-        cache_key_factory = None,
+        service_version: str = None,
+        integration: str = None,
+        integration_method: str = None,
+        cache_key_factory: Callable = None,
     ) -> None:
         self.cache_strategy = cache_strategy
         self.cache_key_factory = cache_key_factory
         self.service_name = service_name
         self.service_version = service_version
+        self.integration = integration
+        self.integration_method = integration_method
 
     def build_cache_key(
         self,
@@ -56,10 +57,20 @@ class RequestManager:
         **func_call_kwargs: Any,
     ) -> str:
         if self.cache_key_factory:
-            return self.cache_key_factory(func, *func_call_args, **func_call_kwargs)
+            return self.cache_key_factory(
+                func,
+                self.service_name,
+                self.integration,
+                self.integration_method,
+                *func_call_args,
+                service_version=self.service_version,
+                **func_call_kwargs,
+            )
         return build_cache_key(
             func,
             self.service_name,
+            self.integration,
+            self.integration_method,
             *func_call_args,
             service_version=self.service_version,
             **func_call_kwargs,
@@ -71,6 +82,6 @@ class RequestManager:
 
             wrapped_func = partial(func, *args, **kwargs)
 
-            return await self.cache_strategy.get_data(wrapped_func, use_cache=USE_CACHE.get(), cache_key=cache_key)
+            return await self.cache_strategy.get_data(wrapped_func, cache_key=cache_key)
 
         return wrapped

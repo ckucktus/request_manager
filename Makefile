@@ -10,9 +10,21 @@ pre-commit:
 pre-commit-all:
 	pre-commit run --all-files --show-diff-on-failure
 
+pre-commit-hooks:
+	poetry run pre-commit run --all-files check-added-large-files
+	poetry run pre-commit run --all-files check-merge-conflict
+	poetry run pre-commit run --all-files detect-private-key
+	poetry run pre-commit run --all-files check-json
+	poetry run pre-commit run --all-files check-toml
+	poetry run pre-commit run --all-files check-yaml
+	poetry run pre-commit run --all-files double-quote-string-fixer
+	poetry run pre-commit run --all-files end-of-file-fixer
+	poetry run pre-commit run --all-files name-tests-test
+	poetry run pre-commit run --all-files trailing-whitespace
+
 # CI
 
-ci-check: isort-check black-check flake8 mypy test
+ci-check: isort-check black-check ruff-ci mypy test
 
 # FORMATTERS
 
@@ -34,11 +46,13 @@ black-check:
 
 # LINTERS
 
-lint: isort-check flake8 mypy
+lint: isort-check ruff mypy black-check
 
-flake8:
-	poetry run flake8 $(SOURCE_DIR)
-	poetry run flake8 --ignore=Q $(TESTS_DIR)
+ruff-ci:
+	poetry run ruff check $(SOURCE_DIR)
+
+ruff:
+	poetry run ruff check $(SOURCE_DIR) --config .pre-commit-ruff.toml
 
 mypy:
 	poetry run mypy --pretty -p $(SOURCE_DIR)
@@ -51,7 +65,7 @@ bandit:
 	poetry run bandit -r ./$(SOURCE_DIR)
 
 safety:
-	poetry run safety check --full-report
+	poetry run safety --disable-optional-telemetry-data check --full-report --file poetry.lock
 
 # TESTS
 
@@ -59,7 +73,7 @@ test:
 	PYTHONPATH=$(SOURCE_DIR) poetry run pytest -vv
 
 test-ci:
-	PYTHONPATH=$(SOURCE_DIR) poetry run pytest --cov=$(SOURCE_DIR) --cov-config=$(TESTS_DIR)/coverage.ini --junitxml=report.xml -vv ${TESTS_DIR}/
+	PYTHONPATH=$(SOURCE_DIR) poetry run pytest --cov=$(SOURCE_DIR) --cov-config=$(TESTS_DIR)/coverage.ini --junitxml=report.xml -vv $(TESTS_DIR)/
 
 test-with-coverage:
 	PYTHONPATH=$(SOURCE_DIR) poetry run pytest --cov=$(SOURCE_DIR) --cov-config=$(TESTS_DIR)/coverage.ini -vv
@@ -67,7 +81,7 @@ test-with-coverage:
 # APP HELPERS
 
 run:
-	poetry run python $(SOURCE_DIR)/main.py
+	poetry run python3.8 $(SOURCE_DIR)/main.py
 
 # UTILS
 
